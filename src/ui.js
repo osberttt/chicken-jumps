@@ -2,6 +2,8 @@ import * as C from './config.js';
 import { formatDay, parseDay, shiftDay } from './rng.js';
 import { doorHeight } from './tower.js';
 import { sfx, setMuted } from './audio.js';
+import { palette, drawHeart, inkHeart, tint, hex, HEART } from './draw.js';
+const BAR_W = 120;
 
 export function label(scene, x, y, text, size, alpha = 1, fixed = true) {
   const t = scene.add
@@ -13,22 +15,25 @@ export function label(scene, x, y, text, size, alpha = 1, fixed = true) {
   return t;
 }
 
+// Hearts top-left, current height top-center with a thin bar filling toward the next
+// door (in that door's color), pause top-right. Best lives in the world as a dashed line.
+// Everything is drawn in the section's ink so it reads on any background.
 export class Hud {
   constructor(sc) {
     this.sc = sc;
-    this.bestLabel = label(sc, C.W / 2, 34, 'BEST TODAY', 13, 0.5).setDepth(50);
-    this.best = label(sc, C.W / 2, 66, '0m', 40).setDepth(50);
-    this.door = label(sc, C.W / 2, 100, '', 16, 0.75).setDepth(50);
-    this.now = label(sc, C.W / 2, 124, '', 15, 0.5).setDepth(50);
+    this.g = sc.add.graphics().setScrollFactor(0).setDepth(50);
+    this.height = label(sc, C.W / 2, 44, '0m', 34).setDepth(50);
+    this.doorText = label(sc, C.W / 2 + BAR_W / 2 + 8, 78, '', 12, 0.75).setOrigin(0, 0.5).setDepth(50);
+    // Right-aligned under the pause button.
+    this.timer = label(sc, C.W - 34, 76, '0:00', 17, 0.75).setOrigin(1, 0.5).setDepth(50);
     this.banner = label(sc, C.W / 2, C.H * 0.34, '', 54).setDepth(60).setAlpha(0);
     this.queue = [];
     this.busy = false;
-    for (const t of [this.bestLabel, this.best, this.door, this.now, this.banner]) t.setShadow(0, 2, 'rgba(0,0,0,0.55)', 8);
+    this.doorN = -1;
+    this.shownHp = sc.player.hp;
+    this.hpPulse = 0;
+    this.banner.setShadow(0, 3, 'rgba(0,0,0,0.35)', 10);
 
-    const g = sc.add.graphics().setScrollFactor(0).setDepth(50);
-    g.fillStyle(0xffffff, 0.55);
-    g.fillRoundedRect(C.W - 54, 31, 7, 24, 2);
-    g.fillRoundedRect(C.W - 41, 31, 7, 24, 2);
     this.pauseZone = sc.add
       .zone(C.W - 44, 43, 80, 80)
       .setScrollFactor(0)
@@ -36,11 +41,53 @@ export class Hud {
       .on('pointerup', () => sc.menu.open());
   }
 
-  update() {
-    const { save, height, nextDoor } = this.sc;
-    this.best.setText(`${Math.floor(save.best)}m`);
-    this.door.setText(`next door at ${doorHeight(nextDoor)}m`);
-    this.now.setText(height < save.best - 1 ? `now ${Math.floor(height)}m` : '');
+  update(dt) {
+    const { height, nextDoor, player, tower, col, runT } = this.sc;
+    const ink = col.ink;
+    tint(this.height, ink).setText(`${Math.floor(height)}m`);
+    tint(this.doorText, ink);
+
+    // Run time, under the hearts. Only re-set the text when the second changes.
+    const secs = Math.floor(runT);
+    if (secs !== this.shownSecs) {
+      this.shownSecs = secs;
+      this.timer.setText(`${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`);
+    }
+    tint(this.timer, ink);
+
+    if (nextDoor !== this.doorN) {
+      this.doorN = nextDoor;
+      this.doorColor = palette(tower, nextDoor).door;
+      this.doorText.setText(`${doorHeight(nextDoor)}`);
+    }
+    if (player.hp !== this.shownHp) {
+      this.shownHp = player.hp;
+      this.hpPulse = 1;
+    }
+    this.hpPulse = Math.max(0, this.hpPulse - dt * 3);
+
+    const g = this.g;
+    g.clear();
+    for (let i = 0; i < C.MAX_HP; i++) {
+      const x = 32 + i * 30;
+      if (i < player.hp) inkHeart(g, x, 42, 10 * (1 + 0.25 * this.hpPulse), HEART, ink);
+      else {
+        g.fillStyle(ink, 0.22);
+        drawHeart(g, x, 42, 10);
+      }
+    }
+
+    // Progress toward the next door, in that door's color.
+    const from = nextDoor > 1 ? doorHeight(nextDoor - 1) : 0;
+    const k = Math.max(0, Math.min(1, (height - from) / (doorHeight(nextDoor) - from)));
+    const x0 = C.W / 2 - BAR_W / 2;
+    g.fillStyle(ink, 1).fillRoundedRect(x0 - 2, 74, BAR_W + 4, 8, 4);
+    g.fillStyle(col.bg, 1).fillRoundedRect(x0, 76, BAR_W, 4, 2);
+    if (k > 0) g.fillStyle(this.doorColor, 1).fillRoundedRect(x0, 76, Math.max(4, BAR_W * k), 4, 2);
+
+    g.fillStyle(ink, 0.8);
+    g.fillRoundedRect(C.W - 54, 31, 7, 24, 2);
+    g.fillRoundedRect(C.W - 41, 31, 7, 24, 2);
   }
 
   announce(text) {
@@ -58,37 +105,10 @@ export class Hud {
     const b = this.banner;
     const tweens = this.sc.tweens;
     tweens.killTweensOf(b);
-    b.setText(text).setAlpha(1).setScale(0.6);
+    b.setText(text).setStroke(hex(this.sc.col.ink), 8).setAlpha(1).setScale(0.6);
     tweens.add({ targets: b, scale: 1, duration: 260, ease: 'Back.Out' });
     tweens.add({ targets: b, alpha: 0, delay: 850, duration: 450, onComplete: () => this.next() });
   }
-}
-
-// Title card for the day's tower; fades out on the first touch (which also starts a drag).
-export function showIntro(sc) {
-  const s = sc.save;
-  const lines = [sc.add.rectangle(C.W / 2, C.H / 2, C.W, C.H, sc.col.bg, 0.7).setScrollFactor(0).setDepth(69)];
-  const add = (y, text, size, alpha) => lines.push(label(sc, C.W / 2, y, text, size, alpha).setDepth(70));
-
-  add(C.H * 0.3, 'UPFALL', 72, 1);
-  add(C.H * 0.3 + 58, `tower of ${formatDay(sc.day)}`, 20, 0.6);
-  if (sc.restored) add(C.H * 0.3 + 92, `welcome back · ${Math.floor(sc.height)}m`, 18, 0.85);
-
-  add(C.H * 0.56, 'drag anywhere, release to fling', 22, 0.95);
-  add(C.H * 0.56 + 34, 'two flings in the air · landing refills', 17, 0.6);
-  add(C.H * 0.56 + 62, 'pass a door and you can never fall below it', 17, 0.6);
-
-  const extra = [];
-  const yesterday = s.history[shiftDay(sc.day, -1)];
-  if (yesterday) extra.push(`yesterday ${Math.floor(yesterday)}m`);
-  if (s.streak > 1) extra.push(`${s.streak} day streak`);
-  if (extra.length) add(C.H * 0.56 + 104, extra.join('   ·   '), 16, 0.5);
-
-  return lines;
-}
-
-export function hideIntro(sc, lines) {
-  sc.tweens.add({ targets: lines, alpha: 0, duration: 400, onComplete: () => lines.forEach((l) => l.destroy()) });
 }
 
 export class Menu {
@@ -131,7 +151,6 @@ export class Menu {
 
   open() {
     if (this.sc.paused) return;
-    this.sc.dismissIntro();
     this.sc.paused = true;
     this.sc.drag = null;
     this.armed = false;
@@ -149,7 +168,7 @@ export class Menu {
     this.stats.setText(
       [
         `${formatDay(this.sc.day)}  ·  best ${Math.floor(s.best)}m`,
-        `climbed ${Math.floor(s.climbed)}m  ·  falls ${s.falls}`,
+        `climbed ${Math.floor(s.climbed)}m  ·  falls ${s.falls}  ·  deaths ${s.deaths}`,
         `longest fall ${Math.floor(s.bigFall)}m  ·  streak ${s.streak}`,
       ].join('\n'),
     );
@@ -195,7 +214,7 @@ export class Menu {
   copy() {
     const s = this.sc.save;
     const text = [
-      `UPFALL · ${formatDay(this.sc.day)}`,
+      `CHICKEN JUMPS · ${formatDay(this.sc.day)}`,
       `▲ ${Math.floor(s.best)}m today`,
       `${s.falls} falls · longest ${Math.floor(s.bigFall)}m`,
       `${s.streak} day streak`,

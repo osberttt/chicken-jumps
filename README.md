@@ -1,4 +1,4 @@
-# Upfall
+# Chicken Jumps
 
 Endless vertical slingshot climber for mobile browsers, built with Phaser 3. Offline, single player, abstract shapes.
 

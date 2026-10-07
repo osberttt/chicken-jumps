@@ -1,16 +1,17 @@
 import { shiftDay } from './rng.js';
 
-const KEY = 'upfall.save.v1';
+const KEY = 'chickenjumps.save.v1';
+const OLD_KEY = 'upfall.save.v1'; // the game's earlier name; read once so saves carry over
 const HISTORY_DAYS = 30;
 
 const num = (v, fallback = 0) => (Number.isFinite(v) ? v : fallback);
 
 // Loads the save and rolls it over to `today`: a save from an earlier day is archived
-// into history and the climb starts again from the bottom of the new tower.
+// into history. Position isn't saved: every page load starts the climb at 0m.
 export function load(today) {
   let raw = null;
   try {
-    raw = JSON.parse(localStorage.getItem(KEY));
+    raw = JSON.parse(localStorage.getItem(KEY) ?? localStorage.getItem(OLD_KEY));
   } catch {
     raw = null;
   }
@@ -19,19 +20,18 @@ export function load(today) {
   const history = raw.history && typeof raw.history === 'object' ? { ...raw.history } : {};
   const save = {
     day: today,
-    pos: null,
     best: 0,
     falls: 0,
     bigFall: 0,
     climbed: 0,
+    deaths: 0,
     streak: 1,
     history,
     muted: !!raw.muted,
   };
 
   if (raw.day === today) {
-    const pos = raw.pos;
-    save.pos = pos && Number.isInteger(pos.id) && pos.id >= 0 ? { id: pos.id, offset: num(pos.offset) } : null;
+    save.deaths = num(raw.deaths);
     save.best = num(raw.best);
     save.falls = num(raw.falls);
     save.bigFall = num(raw.bigFall);
@@ -50,6 +50,7 @@ export function load(today) {
 export function store(save) {
   try {
     localStorage.setItem(KEY, JSON.stringify(save));
+    localStorage.removeItem(OLD_KEY);
   } catch {
     // Storage can be unavailable (private mode, quota); the game keeps running without it.
   }

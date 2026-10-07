@@ -19,24 +19,46 @@ export const MIN_LAUNCH = 380; // px/s at the smallest drag
 export const MAX_LAUNCH = Math.sqrt(2 * GRAVITY * PEAK); // ~1753 px/s at a full drag
 export const WALL_BOUNCE = 0.8;
 
-export const MAX_CHARGES = 2;
-export const REFILL_TIME = 3; // seconds per charge while not landing
-
-// A full-power vertical launch must come back down before one charge refills,
-// otherwise the refill timer alone would allow endless flight.
-console.assert((2 * MAX_LAUNCH) / GRAVITY < REFILL_TIME, 'launch airtime exceeds refill time');
+export const MAX_CHARGES = 2; // double jump; only landing on a platform refills
 
 export const DRAG_DEADZONE = 16; // drags shorter than this cancel
 export const MAX_DRAG = 190; // drag length for full power
-export const AIR_SLOWMO = 0.2; // time scale while aiming in the air
+export const SLOWMO = 0.15; // time scale reached while aiming
+export const SLOWMO_RAMP = 0.9; // seconds of aiming until time is fully slowed
 
 export const CRUMBLE_TIME = 0.9;
 export const CRUMBLE_RESPAWN = 3.5;
-export const BOUNCE_MIN = 1250;
-export const BOUNCE_MAX = MAX_LAUNCH;
+export const BOUNCE_MIN = 1700;
+export const BOUNCE_MAX = 2300;
 export const HIT_COOLDOWN = 1;
 
+export const FUNNEL_W = 150; // mouth width of the funnel (an upside-down cone)
+export const FUNNEL_D = 110; // mouth to tip
+export const FUNNEL_TUBE = 140; // length of the tube rising from the tip
+export const FUNNEL_NECK = 22; // half-width of the tube
+export const FUNNEL_SPEED = 900; // px/s while sliding through the funnel and its tube
+export const PORTAL_R = 26;
+export const WARP_TIME = 0.9; // seconds to fly from the blue portal to the yellow one
+export const PORTAL_EXIT = 1100; // upward speed (px/s) you leave the yellow portal with
+export const STAR_RESPAWN = 4; // seconds until a taken star comes back
+
+export const MAX_HP = 5;
+export const HEART_LIFE = 5; // seconds a heart lasts once it is on screen
+export const HEART_CHANCE = 0.3; // chance of a heart per main platform (from HEARTS_FROM up)
+// Heights (m) where each thing starts appearing in the tower.
+export const BOUNCY_FROM = 100;
+export const HEARTS_FROM = 250;
+export const STARS_FROM = 1500;
+export const SPIKES_FROM = 150; // spikes, saws and wall spikes
+export const FUNNELS_FROM = 500;
+export const PORTALS_FROM = 1000;
+export const RESPAWN_DELAY = 0.9;
+
 export const PX_PER_M = 40;
+
+// Heights (px above the ground) of the two tutorial bars. The first is one jump up, about a
+// third of a screen. The second is more than a full jump (PEAK) above it, so it needs the double jump.
+export const TUTORIAL_BARS = [340, 340 + PEAK + 120];
 
 export const FONT = '"Segoe UI", system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif';
 

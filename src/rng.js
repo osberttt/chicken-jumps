@@ -59,3 +59,14 @@ export function shiftDay(key, days) {
 export function formatDay(key) {
   return parseDay(key).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
+
+// Smooth 1D gradient noise in about [-1, 1]; slow, curvy motion without the pauses of value noise.
+export function noise1(seed, t) {
+  const i = Math.floor(t);
+  const f = t - i;
+  const g0 = hash01(seed * 7919 + i) * 2 - 1;
+  const g1 = hash01(seed * 7919 + i + 1) * 2 - 1;
+  const u = f * f * f * (f * (f * 6 - 15) + 10);
+  const a = g0 * f;
+  return 2 * (a + (g1 * (f - 1) - a) * u);
+}
